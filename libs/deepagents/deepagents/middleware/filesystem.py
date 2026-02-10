@@ -113,9 +113,9 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
     and enforcing consistent formatting. All paths are normalized to use
     forward slashes and start with a leading slash.
 
-    This function is designed for virtual filesystem paths and rejects
-    Windows absolute paths (e.g., C:/..., F:/...) to maintain consistency
-    and prevent path format ambiguity.
+    This function accepts Windows absolute paths (e.g., C:/..., F:/...) and
+    transforms them to virtual filesystem paths by removing the drive letter
+    (e.g., C:/Users/file.txt becomes /Users/file.txt).
 
     Args:
         path: The path to validate and normalize.
@@ -126,16 +126,16 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
         Normalized canonical path starting with `/` and using forward slashes.
 
     Raises:
-        ValueError: If path contains traversal sequences (`..` or `~`), is a
-            Windows absolute path (e.g., C:/...), or does not start with an
-            allowed prefix when `allowed_prefixes` is specified.
+        ValueError: If path contains traversal sequences (`..` or `~`), or
+            does not start with an allowed prefix when `allowed_prefixes` is specified.
 
     Example:
         ```python
         validate_path("foo/bar")  # Returns: "/foo/bar"
         validate_path("/./foo//bar")  # Returns: "/foo/bar"
         validate_path("../etc/passwd")  # Raises ValueError
-        validate_path(r"C:\\Users\\file.txt")  # Raises ValueError
+        validate_path(r"C:\\Users\\file.txt")  # Returns: "/Users/file.txt"
+        validate_path("D:/Projects/code.py")  # Returns: "/Projects/code.py"
         validate_path("/data/file.txt", allowed_prefixes=["/data/"])  # OK
         validate_path("/etc/file.txt", allowed_prefixes=["/data/"])  # Raises ValueError
         ```
@@ -144,11 +144,10 @@ def _validate_path(path: str, *, allowed_prefixes: Sequence[str] | None = None) 
         msg = f"Path traversal not allowed: {path}"
         raise ValueError(msg)
 
-    # Reject Windows absolute paths (e.g., C:\..., D:/...)
-    # This maintains consistency in virtual filesystem paths
+    # Transform Windows absolute paths (e.g., C:\..., D:/...)
+    # Remove drive letter and colon (C:/foo -> /foo)
     if re.match(r"^[a-zA-Z]:", path):
-        msg = f"Windows absolute paths are not supported: {path}. Please use virtual paths starting with / (e.g., /workspace/file.txt)"
-        raise ValueError(msg)
+        path = path[2:]  # Remove drive letter and colon
 
     normalized = os.path.normpath(path)
     normalized = normalized.replace("\\", "/")
